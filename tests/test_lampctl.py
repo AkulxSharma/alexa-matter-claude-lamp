@@ -4,7 +4,25 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lamp"))
 
-from lampctl import crc16_modbus, frame, frames_for  # noqa: E402
+from lampctl import DEFAULTS, crc16_modbus, frame, frames_for, is_candidate, parse_state  # noqa: E402
+
+
+class StateTest(unittest.TestCase):
+    def test_parse_reply(self):
+        # A1 10 len | on mode sub brightness speed sens R G B
+        reply = bytes([0xA1, 0x10, 0x0C, 1, 1, 0, 10, 0, 0, 25, 2, 0, 0, 0])
+        self.assertEqual(parse_state(reply), {"on": True, "mode": 1, "brightness": 10, "rgb": [25, 2, 0]})
+
+    def test_rejects_other_frames(self):
+        self.assertIsNone(parse_state(frame(0x11, b"\x01")))
+        self.assertIsNone(parse_state(b"\xa1\x10"))
+
+
+class CandidateTest(unittest.TestCase):
+    def test_service_uuid_or_name(self):
+        self.assertTrue(is_candidate(None, [DEFAULTS["service_uuid"].upper()], DEFAULTS))
+        self.assertTrue(is_candidate("P065_a1b2", [], DEFAULTS))
+        self.assertFalse(is_candidate("Someone's AirPods", [], DEFAULTS))
 
 
 class CrcTest(unittest.TestCase):
