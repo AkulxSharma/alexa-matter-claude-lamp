@@ -44,6 +44,29 @@ function loadOrCreatePairing() {
 }
 const pairing = loadOrCreatePairing();
 
+// Step 1: prove the Mac can reach and control the lamp over Bluetooth. Matter (and therefore Alexa)
+// only starts after this succeeds, so you never pair Alexa with a bridge that cannot drive the lamp.
+if (!config.lamp?.ble_name && !config.lamp?.ble_address) {
+    console.error("No lamp configured. Run first:  python3 lamp/lampctl.py setup");
+    process.exit(1);
+}
+function checkLamp() {
+    return new Promise(resolve => {
+        execFile(bridge.python, [LAMPCTL, "--config", CONFIG_PATH, "check"], { timeout: 60000 }, (err, out, errOut) => {
+            resolve({ ok: !err, message: (err ? errOut || err.message : out).trim() });
+        });
+    });
+}
+for (let attempt = 1; ; attempt++) {
+    const { ok, message } = await checkLamp();
+    if (ok) {
+        console.log(`LAMP OK: ${message}`);
+        break;
+    }
+    console.error(`LAMP NOT REACHABLE (attempt ${attempt}): ${message}\nRetrying in 10 s...`);
+    await new Promise(r => setTimeout(r, 10000));
+}
+
 // Serialise BLE calls (one connection at a time) and coalesce rapid updates: only the newest
 // value per key is sent, so dragging a slider in the Alexa app does not queue dozens of writes.
 let busy = false;
