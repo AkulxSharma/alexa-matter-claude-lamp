@@ -1,0 +1,16 @@
+{
+  "name": "ble-lamp-matter-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node lamp.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@matter/main": "^0.18.0",
+    "@matter/nodejs": "^0.18.0"
+  }
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Starts the bridge at login by opening start-lamp-bridge.command in Terminal (see README for why).
+  Replace /PATH/TO with the absolute path of your checkout, save as
+  ~/Library/LaunchAgents/com.example.ble-lamp-bridge.plist, then:
+    launchctl load ~/Library/LaunchAgents/com.example.ble-lamp-bridge.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.ble-lamp-bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>-g</string>
+    <string>-a</string>
+    <string>Terminal</string>
+    <string>/PATH/TO/ble-lamp-matter-bridge/macos/start-lamp-bridge.command</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
