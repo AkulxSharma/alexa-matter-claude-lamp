@@ -1,6 +1,9 @@
 {
   "lamp": {
-    "ble_name": "P0XX_xxxx",
+    "ble_name": "",
+    "ble_address": "",
+    "service_uuid": "0000c065-0000-1000-8000-00805f9b34fb",
+    "name_pattern": "^P0[0-9A-Fa-f]{2}_[0-9A-Fa-f]{4}$",
     "write_uuid": "0000a065-0000-1000-8000-00805f9b34fb",
     "notify_uuid": "0000f065-0000-1000-8000-00805f9b34fb",
     "lock_path": "~/.cache/ble-lamp-matter-bridge/ble.lock",
@@ -11,6 +14,10 @@
     "device_name": "Bedroom Light",
     "node_id": "ble-lamp-matter-bridge",
     "port": 5540,
-    "snap_orange_to_rgb": [255, 25, 0]
+    "snap_orange_to_rgb": [
+      255,
+      25,
+      0
+    ]
   }
 }

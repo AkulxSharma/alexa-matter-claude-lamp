@@ -241,7 +241,8 @@ async def cmd_setup(cfg, args):
     if not rows:
         print("No matching lamp found. Close the vendor app, power-cycle the lamp, move closer, and retry.")
         return 1
-    print("Lamps nearby. Neighbours' lamps can show up too; the strongest signal is usually yours.")
+    print("Lamps nearby. Neighbours' lamps of the same model show up too, and signal strength does not tell\n"
+          "you which one is yours. The next step blinks the lamp you pick so you can confirm.")
     for i, (name, address, rssi, _d) in enumerate(rows, 1):
         print(f"{i:2}. {name:20} signal {rssi:4} dBm")
     remaining = list(rows)

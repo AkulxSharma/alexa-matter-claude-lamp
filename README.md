@@ -25,8 +25,8 @@ controllers (Google Home, Apple Home, Home Assistant) should work too but have n
 | Path | What it is |
 |---|---|
 | `bridge/lamp.mjs` | The Matter node. Exposes one colour light, turns Matter attribute changes into `lampctl.py` calls. |
-| `lamp/lampctl.py` | Sends one batch of BLE frames to the lamp: `on`, `off`, `rgb R G B`, `bright PCT`. Has `--dry-run`. |
-| `config.example.json` | Copy to `config.json` and set your lamp's BLE name. |
+| `lamp/lampctl.py` | Finds and verifies your lamp (`scan`, `setup`, `check`) and controls it (`on`, `off`, `rgb R G B`, `bright PCT`). Has `--dry-run`. |
+| `config.example.json` | Template; `lampctl.py setup` copies it to `config.json` and fills in your lamp. |
 | `macos/start-lamp-bridge.command` | Runs the bridge in Terminal with auto-restart and `caffeinate`. |
 | `macos/com.example.ble-lamp-bridge.plist.example` | Optional LaunchAgent to start the bridge at login. |
 | `tests/test_lampctl.py` | CRC and frame tests (no Bluetooth needed). |
@@ -53,36 +53,61 @@ python3 -m venv .venv
 cd bridge && npm install && cd ..
 ```
 
-### 2. Find your lamp's BLE name
+### 2. Connect the Mac to YOUR lamp (do this first)
+
+Every lamp has its own Bluetooth name (DayBetter strips look like `P065_xxxx`, with a different suffix per
+lamp). Neighbours' lamps of the same model often show up in the same scan, and signal strength does not
+reliably tell you which one is yours. The setup command finds the lamps, blinks the one you pick, and only
+saves it after you confirm that your lamp blinked.
 
 Fully close the vendor phone app first. BLE lamps accept one connection at a time, and the app holds it.
 
 ```sh
-.venv/bin/python -c "import asyncio, bleak; [print(d.name, d.address) for d in asyncio.run(bleak.BleakScanner.discover(10)) if d.name]"
+.venv/bin/python lamp/lampctl.py setup
 ```
 
-DayBetter strips show up as something like `P065_xxxx`. If the lamp is missing, power-cycle it and scan again.
+```
+Scanning for lamps (close the vendor phone app first)...
+ 1. P065_c3d4            signal  -63 dBm
+ 2. P065_a1b2            signal  -75 dBm
+Which number is your lamp? [1-2, q to quit] 2
+Connecting to P065_a1b2 and blinking it...
+Connected to P065_a1b2: power on, brightness 10%, RGB (25, 2, 0)
+Did YOUR lamp just blink? [y/N] y
+Saved P065_a1b2 to config.json. The Mac can control your lamp.
+```
 
-### 3. Configure
+If you answer "n", pick another number. Setup creates `config.json` from `config.example.json` and stores the
+lamp's name and its macOS Bluetooth identifier. The first Bluetooth call may trigger a macOS permission
+prompt for your terminal app. Allow it.
+
+Other useful commands:
 
 ```sh
-cp config.example.json config.json
+.venv/bin/python lamp/lampctl.py scan     # list lamps only (add --all to list every BLE device)
+.venv/bin/python lamp/lampctl.py check    # connect to the saved lamp, print its state, exit 0 if it works
 ```
 
-Edit `config.json`:
+Lamp not in the list: close the vendor app, power-cycle the lamp, move the Mac closer, and run setup again.
+
+### 3. Configure the bridge
+
+Open `config.json` and set `bridge.python` to the Python that has `bleak`, for example the absolute path to
+`.venv/bin/python`. Everything else has working defaults.
 
 | Key | Meaning |
 |---|---|
-| `lamp.ble_name` | **Required.** The name from step 2. |
+| `lamp.ble_name` / `lamp.ble_address` | Written by `setup`. The address is the macOS-specific identifier (not a MAC address). |
+| `lamp.service_uuid` / `lamp.name_pattern` | How `scan` recognises lamps. Defaults match DayBetter strips. |
 | `lamp.write_uuid` / `lamp.notify_uuid` | GATT characteristics. The defaults are right for DayBetter strips. |
 | `lamp.lock_path` | Lock file that serialises BLE access between processes. |
-| `bridge.python` | Python that has `bleak` installed, e.g. the absolute path to `.venv/bin/python`. |
+| `bridge.python` | Python that has `bleak` installed. |
 | `bridge.device_name` | Name Alexa shows by default (you can rename it in the Alexa app). |
 | `bridge.node_id` | matter.js storage name (`~/.matter/<node_id>`). Changing it means pairing again. |
 | `bridge.port` | Matter UDP port, default 5540. |
 | `bridge.snap_orange_to_rgb` | Optional. Orange-ish hues from Alexa are replaced with this exact RGB value. Set `null` to disable. |
 
-### 4. Test the lamp directly
+### 4. Try the lamp directly (optional)
 
 ```sh
 .venv/bin/python lamp/lampctl.py --dry-run rgb 255 0 0   # prints frames, no Bluetooth
@@ -92,22 +117,28 @@ Edit `config.json`:
 .venv/bin/python lamp/lampctl.py off
 ```
 
-The first real call may trigger a macOS Bluetooth permission prompt for your terminal app. Allow it.
-
-### 5. Start the bridge
+### 5. Start the bridge (Matter)
 
 ```sh
 cd bridge && node lamp.mjs
 ```
 
-On first start it creates `.pairing.json` with a random Matter passcode and discriminator for your install
-(kept out of git) and prints:
+The bridge checks the lamp before anything else. Matter starts only after the Mac has connected to the lamp
+and read its state:
 
 ```
+LAMP OK: Connected to P065_a1b2: power on, brightness 10%, RGB (25, 2, 0)
 READY: not paired.
 Manual pairing code: 1234-567-8901
 QR payload: MT:XXXXXXXXXXXXXXXXXXX
 ```
+
+If the lamp is not reachable, the bridge prints `LAMP NOT REACHABLE` and retries every 10 seconds. It
+doesn't advertise to Alexa until the lamp check passes. If no lamp is configured, it exits and tells you to
+run `setup`.
+
+On first start, the bridge also creates `.pairing.json` with a random Matter passcode and discriminator
+for your install. That file is kept out of git.
 
 The first time, macOS asks whether your terminal may find devices on the local network. Allow it, or
 Alexa will never discover the bridge.
@@ -200,7 +231,7 @@ Example: power on = `a0 11 04 01 b1 21`. Run `lamp/lampctl.py --dry-run on` to s
 | Symptom | Fix |
 |---|---|
 | Alexa cannot find the device while pairing | Allow Local Network access for your terminal (System Settings → Privacy & Security → Local Network). Make sure the Mac and Echo are on the same network and VLAN. |
-| `… not found` from `lampctl.py` | Close the vendor app completely, move closer, power-cycle the lamp. |
+| `… not found` from `lampctl.py`, or `LAMP NOT REACHABLE` from the bridge | Close the vendor app completely, move closer, power-cycle the lamp. |
 | On/off and colour work, but brightness does not change | Make sure you are using this `lampctl.py`, which follows the rules above. |
 | Pairing code changed | `.pairing.json` was deleted. Restore it, or remove the device in Alexa and pair again. |
 | Need to start over | Remove the device in the Alexa app, delete `~/.matter/<node_id>` and `.pairing.json`, then restart. |
